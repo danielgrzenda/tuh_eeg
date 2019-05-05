@@ -15,8 +15,9 @@ The goal of this repo is to replicate and then improve upon the multi-class
 seizure classification problem described in [this
 paper](https://arxiv.org/pdf/1903.03232.pdf). The data we are using for this
 comes from the TUH EEG corpus online. It can be found
-[here](https://www.isip.piconepress.com/projects/tuh_eeg/). Notebook `00` in
-this repo will download it for you.
+[here](https://www.isip.piconepress.com/projects/tuh_eeg/). The data directory
+is not sourced controled on Github, but notebook `00` in this repo will download
+it for you.
  
 ## Directory Structure
 
