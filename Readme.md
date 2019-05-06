@@ -4,6 +4,7 @@
 <!-- vim-markdown-toc GFM -->
 
 * [Introduction](#introduction)
+* [Getting Started](#getting-started)
 * [Directory Structure](#directory-structure)
 * [TODO](#todo)
 
@@ -16,9 +17,17 @@ seizure classification problem described in [this
 paper](https://arxiv.org/pdf/1903.03232.pdf). The data we are using for this
 comes from the TUH EEG corpus online. It can be found
 [here](https://www.isip.piconepress.com/projects/tuh_eeg/). The data directory
-is not sourced controled on Github, but notebook `00` in this repo will download
-it for you.
+is not sourced controled on Github, but see the [Getting
+Started](#getting-started) section for directions on how to download it.
  
+## Getting Started 
+
+The first thing to do is build out the data directory. Be sure to check the free
+space on your computer, as the raw data requires ~56 GB. To download the data run
+`/nbs/00_get_data.ipynb`. Then to build the data dictionary used for exploring
+the raw data set and building out the image data set, run the
+`/nbs/01_data_dict.ipynb` notebook. 
+
 ## Directory Structure
 
 * /nbs - all the notebook for exploring/building out the data pipeline
@@ -39,13 +48,13 @@ it for you.
 
 ## TODO
 
-* Build the image creation script for the small `test` set.
+* combine and sparkify the sampling/image creation nbs
+* run the pipeline script for the small `test` set.
 * Run the whole pipeline for the entire dataset
-    * A little nervous about the size of the final directory 
+    * A little nervous about the size of the final directory (~11TB?)
 * Worry about the validation split (by patient, session, etc?)
 * Try out different techniques
     * Other down-sampling techniques
     * Alternatives to the fft (rfft, gramian angular field, wavelet)
     * Down sample less than 96
-
 
