@@ -23,8 +23,7 @@ def load_data_dict(filename):
 
 def start_spark():
     conf = (SparkConf().setMaster("local")
-            .setAppName("EEG to Image")
-            .set("spark.executor.memory","1g"))
+            .setAppName("EEG to Image"))
     sc = SparkContext(conf=conf)
     return sc, conf
 
