@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+
+
 import collections
 import functools
 from pathlib import Path
@@ -8,20 +11,24 @@ import scipy
 from scipy import signal
 import multiprocessing
 
+
 def divergence(F):
     """ compute the divergence of n-D scalar field `F` """
     """ https://stackoverflow.com/questions/11435809/compute-divergence-of-vector-field-using-python """
     return functools.reduce(np.add,np.gradient(F))
+
 
 def scale(F):
     """ scale a n-D scalar field to [0-255] range for image creation """
     F *= (255.0/F.max())
     return F
 
+
 def convolve_8NNavg(F):
     """ compute the average of the 8 nearest neighbors for each point in the n-D scalar field `F` """
     """ https://gis.stackexchange.com/questions/254753/calculate-the-average-of-neighbor-pixels-for-raster-edge """
     return scipy.ndimage.generic_filter(F, np.nanmean, size=3, mode='constant', cval=np.NaN)
+
 
 def get_paths():
     here = Path(f'{os.getcwd()}')
@@ -30,21 +37,24 @@ def get_paths():
     img_path = data_path/'images/test'
     return test_path, img_path
 
+
 def eeg_to_image(f, test_path, img_path):
     data = np.load(f)
     save_loc = img_path/f'{f.stem}.png'
     S = np.fft.fft(data)
     D = divergence(S)
-    S = abs(S)
-    D = abs(D)
+    S, D = abs(S), abs(D)
     I = convolve_8NNavg(D)
-    S = scale(S)
-    D = scale(D)
-    I = scale(I)
+    S, D, I = scale(S), scale(D), scale(I)
+    form_image_and_save(save_loc, S, D, I)
+
+
+def form_image_and_save(save_loc, S, D, I)
     img = np.stack([S,D,I], axis=2)
     img = PIL.Image.fromarray(img, 'RGB')
     img = img.resize([224,224], PIL.Image.ANTIALIAS)
     img.save(save_loc)
+
 
 if __name__ == "__main__":
     test_path, img_path = get_paths()
