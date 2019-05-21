@@ -48,10 +48,10 @@ the raw data set and building out the image data set, run the
 
 ## TODO
 
-* combine and sparkify the sampling/image creation nbs
+* add percentage sampling for the script (to build small test cases)
 * run the pipeline script for the small `test` set.
 * Run the whole pipeline for the entire dataset
-    * A little nervous about the size of the final directory (~11TB?)
+    * A little nervous about the size of the final directory (~21TB?)
 * Worry about the validation split (by patient, session, etc?)
 * Try out different techniques
     * Other down-sampling techniques
