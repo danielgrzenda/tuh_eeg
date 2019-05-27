@@ -12,6 +12,9 @@ import random
 
 
 # argpare arguments
+parser = argparse.ArgumentParser()
+parser.add_argument('--sample_rate', default=0.01, type=float, 
+            help='The percentage of the data to sample')
 
 def get_paths():
     here = Path(f'{os.getcwd()}')
@@ -86,9 +89,10 @@ def save_sample(parent_path, sample_dict):
 
 
 if __name__ == "__main__":
+    args = parser.parse_args()
     parent_path, test_path, img_path = get_paths()
     data_dict = get_data_dictionary(parent_path)
-    sample_eegs = sample_data_by_label(data_dict, 0.01)
+    sample_eegs = sample_data_by_label(data_dict, args.sample_rate)
     get_time_breakdown(sample_eegs)
     save_sample(parent_path, sample_eegs)
 
