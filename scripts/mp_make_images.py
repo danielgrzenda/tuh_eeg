@@ -1,15 +1,22 @@
 #!/usr/bin/env python3
 
 
+import argparse
 import collections
 import functools
+import json
+import multiprocessing
+import numpy as np
+import operator
+import os
 from pathlib import Path
 import PIL
-import os
-import numpy as np
+import random
 import scipy
 from scipy import signal
-import multiprocessing
+
+
+# argpare arguments
 
 
 def divergence(F):
@@ -32,10 +39,11 @@ def convolve_8NNavg(F):
 
 def get_paths():
     here = Path(f'{os.getcwd()}')
-    data_path = here.parent/'data'
+    parent_path = here.parent
+    data_path = parent_path/'data'
     test_path = data_path/'augmented/test'
     img_path = data_path/'images/test'
-    return test_path, img_path
+    return parent_path, test_path, img_path
 
 
 def eeg_to_image(f, test_path, img_path):
@@ -46,19 +54,81 @@ def eeg_to_image(f, test_path, img_path):
     S, D = abs(S), abs(D)
     I = convolve_8NNavg(D)
     S, D, I = scale(S), scale(D), scale(I)
-    form_image_and_save(save_loc, S, D, I)
+    img = np.stack([S, D, I], axis=2)
+    save_image(save_loc, img)
 
 
-def form_image_and_save(save_loc, S, D, I)
-    img = np.stack([S,D,I], axis=2)
+def save_image(save_loc, img):
     img = PIL.Image.fromarray(img, 'RGB')
     img = img.resize([224,224], PIL.Image.ANTIALIAS)
     img.save(save_loc)
 
 
+def get_data_dictionary(parent_path):
+    with open(parent_path/'data_dict.json','r') as f:
+        data_dict = json.load(f)
+    return data_dict
+
+
+def sample_data_by_label(label_dict, sample_rate):
+    sample = collections.defaultdict(list)
+    for key, entries in label_dict.items():
+        total_for_this_label = 0
+        for observation in entries:
+            if np.random.binomial(1, p=sample_rate) == 1:
+                sample[key].append(observation)
+                total_for_this_label += 1
+        if total_for_this_label <= 0:
+            sample[key].append(random.choice(entries))
+    return sample
+
+
+def get_label_dictionary(data_dict):
+    label_dict = collections.defaultdict(list)
+    for key, entries in data_dict.items():
+        for observation in entries:
+            label_set = frozenset(observation['labels'])
+            label_dict[label_set].append(observation)
+    return label_dict
+
+
+def get_time_breakdown(data_dict):
+    time_breakdown = collections.defaultdict(list)
+    for key, value in data_dict.items():
+        for entry in value:
+            time_list = zip(entry['labels'], entry['durations'])
+            last = 0
+            for label, curr in time_list:
+                time = float(curr) - last
+                time_breakdown[label].append(time)
+                last = float(curr)
+    
+    summary = collections.defaultdict()
+    for key, value in time_breakdown.items():
+        summary[key] = sum(value)
+    
+    total = sum(summary.values())
+    print(f'Total Time: {total}')
+    for key, value in sorted(summary.items(), key=operator.itemgetter(1), reverse=True):
+        print(f'{key} {(value/total)*100:.2f}%')
+
+
+def save_sample(parent_path, sample_dict):
+    with open(parent_path/'sample_dict.json', 'w') as f:
+        f.write(json.dumps(sample_dict))
+
+
 if __name__ == "__main__":
-    test_path, img_path = get_paths()
-    for f in test_path.iterdir():
-        p = multiprocessing.Process(target=eeg_to_image, args=(f, test_path, img_path))
-        p.start()
+    parent_path, test_path, img_path = get_paths()
+    data_dict = get_data_dictionary(parent_path)
+    label_dict = get_label_dictionary(data_dict)
+    sample_eegs = sample_data_by_label(label_dict, 0.01)
+    get_time_breakdown(sample_eegs)
+    save_sample(parent_path, sample_eegs)
+    ## sample originals
+    ## process eegs (multiprocessing)
+    ## turn into images (how to pass them to this)
+    # for f in test_path.iterdir():
+    #     p = multiprocessing.Process(target=eeg_to_image, args=(f, test_path, img_path))
+    #     p.start() 
 
