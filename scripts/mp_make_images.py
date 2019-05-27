@@ -70,7 +70,8 @@ def get_data_dictionary(parent_path):
     return data_dict
 
 
-def sample_data_by_label(label_dict, sample_rate):
+def sample_data_by_label(data_dict, sample_rate):
+    label_dict = data_to_label_dict(data_dict)
     sample = collections.defaultdict(list)
     for key, entries in label_dict.items():
         total_for_this_label = 0
@@ -79,11 +80,20 @@ def sample_data_by_label(label_dict, sample_rate):
                 sample[key].append(observation)
                 total_for_this_label += 1
         if total_for_this_label <= 0:
-            sample[key].append(random.choice(entries))
-    return sample
+            sample[key ].append(random.choice(entries))
+    data_dict = label_to_data_dict(sample)
+    return data_dict
 
 
-def get_label_dictionary(data_dict):
+def label_to_data_dict(label_dict):
+    data_dict = collections.defaultdict(list)
+    for key, entries in label_dict.items():
+        for observation in entries:
+            data_dict[observation['patient']].append(observation)
+    return data_dict
+
+
+def data_to_label_dict(data_dict):
     label_dict = collections.defaultdict(list)
     for key, entries in data_dict.items():
         for observation in entries:
@@ -121,8 +131,7 @@ def save_sample(parent_path, sample_dict):
 if __name__ == "__main__":
     parent_path, test_path, img_path = get_paths()
     data_dict = get_data_dictionary(parent_path)
-    label_dict = get_label_dictionary(data_dict)
-    sample_eegs = sample_data_by_label(label_dict, 0.01)
+    sample_eegs = sample_data_by_label(data_dict, 0.01)
     get_time_breakdown(sample_eegs)
     save_sample(parent_path, sample_eegs)
     ## sample originals
