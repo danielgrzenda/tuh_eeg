@@ -13,6 +13,7 @@ from pathlib import Path
 import PIL
 import pyedflib
 import scipy
+from scipy import stats
 from scipy import signal
 
 
@@ -143,9 +144,11 @@ def get_eeg(entry):
     n = f.signals_in_file
     signal_labels = f.getSignalLabels()
     sigbufs = np.zeros((n, f.getNSamples()[0]))
+    max_len = stats.mode(f.getNSamples())
     for i in np.arange(n):
         sigbufs[i, :] = f.readSignal(i)
-    return sigbufs
+     return sigbufs
+
 
 if __name__ == "__main__":
     args = parser.parse_args()
