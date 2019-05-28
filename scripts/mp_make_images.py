@@ -4,6 +4,7 @@
 import argparse
 import collections
 import functools
+import itertools
 import json
 import multiprocessing
 import numpy as np
@@ -43,7 +44,7 @@ def get_paths():
     parent_path = here.parent
     data_path = parent_path/'data'
     test_path = data_path/'augmented/test'
-    img_path = data_path/'images/test'
+    img_path = data_path/'images'
     return parent_path, test_path, img_path
 
 
@@ -54,7 +55,7 @@ def eeg_to_image(data, fn, image_path):
     I = convolve_8NNavg(D)
     S, D, I = scale(S), scale(D), scale(I)
     img = np.stack([S, D, I], axis=2)
-    save_loc = image_path/fn
+    save_loc = f'{image_path/fn}.png'
     save_image(save_loc, img)
 
 
@@ -86,21 +87,21 @@ def down_sample_eeg(entry, h):
     f = pyedflib.EdfReader(entry['loc'])
     n = f.signals_in_file
     signal_labels = f.getSignalLabels()
-    eeg = np.zeros((n, g.getNSamples()[0]))
+    eeg = np.zeros((n, f.getNSamples()[0]))
     for i in np.arange(n):
-        eeg[i,:] = f.readSignal(i)
+        eeg[i, :] = f.readSignal(i)
     num_elems = int(float(entry['durations'][-1])) * h
     return signal.resample(eeg, num=num_elems, axis=1)
 
 
 def process_eeg(eeg, key, entry, h, w, o, label_dict, image_path):
     length = float(entry['durations'][-1])
-    step_value = w - (w * (op/100))
+    step_value = w - (w * (o/100))
     piece = 1 
     total_pieces = len(np.arange(0, length, step_value))
     for start in np.arange(0, length, step_value):
         end = start + w
-        fn = build_filename(key, entry, h, w, o, start, end, piece.
+        fn = build_filename(key, entry, h, w, o, start, end, piece,
                 total_pieces)
         start_obs = int(start * h)
         end_obs = int(end * h)
@@ -120,10 +121,31 @@ def get_labels(start, end, label_durations):
         labels.remove('bckg')
     return labels
 
+
+def get_durations(entry):
+    durations = []
+    for i, dur in enumerate(entry['durations']):
+        if i == 0:
+            durations.append((0, float(dur)))
+        else:
+            durations.append((float(entry['durations'][i-1]), float(dur)))
+    return zip(durations, entry['labels'])
+
+
 def write_labels(start, end, entry, fn, label_dict):
     label_durations = get_durations(entry)
     labels = get_labels(start, end, label_durations)
     label_dict[f'{fn}.png'] = labels
+
+
+def get_eeg(entry): 
+    f = pyedflib.EdfReader(entry['loc'])
+    n = f.signals_in_file
+    signal_labels = f.getSignalLabels()
+    sigbufs = np.zeros((n, f.getNSamples()[0]))
+    for i in np.arange(n):
+        sigbufs[i, :] = f.readSignal(i)
+    return sigbufs
 
 if __name__ == "__main__":
     args = parser.parse_args()
@@ -142,11 +164,16 @@ if __name__ == "__main__":
     label_dict = collections.defaultdict()
     for key, entries in data_dict.items():
         for observation in entries:
+            try:
+                eeg = get_eeg(observation)
+            except:
+                print(observation)
+                continue
             for h in H_VALUES:
                 down_sampled_eeg = down_sample_eeg(observation, h)
                 for w, o in list(itertools.product(W_VALUES, O_VALUES)):
                     process_eeg(down_sampled_eeg, key, observation, h, w, o,
-                            label_dict, image_path) 
+                            label_dict, img_path) 
     
     ## turn into images (how to pass them to this)
     # for f in test_path.iterdir():
