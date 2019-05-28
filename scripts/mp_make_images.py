@@ -84,13 +84,7 @@ def get_data_dictionary(parent_path, dict_string):
     return data_dict
 
 
-def down_sample_eeg(entry, h):
-    f = pyedflib.EdfReader(entry['loc'])
-    n = f.signals_in_file
-    signal_labels = f.getSignalLabels()
-    eeg = np.zeros((n, f.getNSamples()[0]))
-    for i in np.arange(n):
-        eeg[i, :] = f.readSignal(i)
+def down_sample_eeg(eeg, entry, h):
     num_elems = int(float(entry['durations'][-1])) * h
     return signal.resample(eeg, num=num_elems, axis=1)
 
@@ -144,10 +138,11 @@ def get_eeg(entry):
     n = f.signals_in_file
     signal_labels = f.getSignalLabels()
     sigbufs = np.zeros((n, f.getNSamples()[0]))
-    max_len = stats.mode(f.getNSamples())
+    max_len = max(f.getNSamples())
     for i in np.arange(n):
-        sigbufs[i, :] = f.readSignal(i)
-     return sigbufs
+        if len(f.readSignal(i)) == max_len:
+            sigbufs[i, :] = f.readSignal(i)
+    return sigbufs
 
 
 if __name__ == "__main__":
@@ -167,17 +162,14 @@ if __name__ == "__main__":
     label_dict = collections.defaultdict()
     for key, entries in data_dict.items():
         for observation in entries:
-            try:
-                eeg = get_eeg(observation)
-            except:
-                print(observation)
-                continue
+            eeg = get_eeg(observation)
             for h in H_VALUES:
-                down_sampled_eeg = down_sample_eeg(observation, h)
+                down_sampled_eeg = down_sample_eeg(eeg, observation, h)
                 for w, o in list(itertools.product(W_VALUES, O_VALUES)):
-                    process_eeg(down_sampled_eeg, key, observation, h, w, o,
-                            label_dict, img_path) 
-    
+                    #process_eeg(down_sampled_eeg, key, observation, h, w, o, label_dict, img_path) 
+                    p = multiprocessing.Process(target = process_eeg, args=(down_sampled_eeg, key, observation, h, w, o,
+                            label_dict, img_path)) 
+                    p.start()
     ## turn into images (how to pass them to this)
     # for f in test_path.iterdir():
     #     p = multiprocessing.Process(target=eeg_to_image, args=(f, test_path, img_path))
