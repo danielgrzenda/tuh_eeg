@@ -15,6 +15,8 @@ import random
 parser = argparse.ArgumentParser()
 parser.add_argument('--sample_rate', default=0.01, type=float, 
             help='The percentage of the data to sample')
+parser.add_argument('--eeg_config', default=None, type=str,
+        help='The type of eegs to restrict to')
 
 def get_paths():
     here = Path(f'{os.getcwd()}')
@@ -29,6 +31,18 @@ def get_data_dictionary(parent_path):
         data_dict = json.load(f)
     return data_dict
 
+def filter_dict(data_dict, eeg_config='ar'):
+    for key, entry in data_dict.items():
+        for observation in list(entry):
+            if observation['config'] != eeg_config:
+                entry.remove(observation)
+    return data_dict
+
+def confirm_filter(data_dict, eeg_config='ar'):
+    for key, entry in data_dict.items():
+        for observation in entry:
+            if observation['config']!='ar':
+                print('Did not work')
 
 def sample_data_by_label(data_dict, sample_rate):
     label_dict = data_to_label_dict(data_dict)
@@ -92,6 +106,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
     parent_path, test_path, img_path = get_paths()
     data_dict = get_data_dictionary(parent_path)
+    if args.eeg_config:
+        data_dict = filter_dict(data_dict, args.eeg_config)
+        confirm_filter(data_dict, args.eeg_config)
     sample_eegs = sample_data_by_label(data_dict, args.sample_rate)
     get_time_breakdown(sample_eegs)
     save_sample(parent_path, sample_eegs)

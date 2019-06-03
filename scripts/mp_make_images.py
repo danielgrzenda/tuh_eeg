@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#/usr/bin/env python3
 
 
 import argparse
@@ -22,16 +22,18 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--dict_string', default='data_dict.json', type=str,
         help='The string for the dictionary to use')
 
-def divergence(F):
-    """ compute the divergence of n-D scalar field `F` """
-    """ https://stackoverflow.com/questions/11435809/compute-divergence-of-vector-field-using-python """
-    return functools.reduce(np.add,np.gradient(F))
+CHANNEL_NAMES = ['EEG FP1-REF','EEG FP2-REF','EEG F8-REF','EEG F4-REF','EEG FZ-REF','EEG F3-REF','EEG F7-REF','EEG T3-REF','EEG C3-REF','EEG CZ-REF','EEG C4-REF','EEG T4-REF','EEG T6-REF','EEG P4-REF','EEG PZ-REF','EEG P3-REF','EEG T5-REF','EEG O1-REF','EEG O2-REF']
+
+def divergence(X):
+    """ compute the divergence of n-D scalar field `X` """
+    return scipy.ndimage.laplace(X)
 
 
-def scale(F):
+def scale(X, maxi=255, mini=0):
     """ scale a n-D scalar field to [0-255] range for image creation """
-    F *= (255.0/F.max())
-    return F
+    X_std = (X - X.min()) / (X.max() - X.min())
+    X_scaled = X_std * (maxi - mini) + mini
+    return X_scaled
 
 
 def convolve_8NNavg(F):
@@ -40,20 +42,32 @@ def convolve_8NNavg(F):
     return scipy.ndimage.generic_filter(F, np.nanmean, size=3, mode='constant', cval=np.NaN)
 
 
+def l2_row(X):
+    norm = np.linalg.norm(X, axis=1)[:,np.newaxis]
+    if not np.all(norm):
+        print(norm)
+    X /=  np.linalg.norm(X, axis=1)[:,np.newaxis]
+    return X  
+
+
 def get_paths():
     here = Path(f'{os.getcwd()}')
     parent_path = here.parent
     data_path = parent_path/'data'
-    test_path = data_path/'augmented/test'
+    raw_path = data_path/'raw'/'v1.5.0/edf'
+    train_path = raw_path/'train'
+    test_path = raw_path/'test'
     img_path = data_path/'images'
-    return parent_path, test_path, img_path
+    paths = {'parent':parent_path, 'raw':raw_path, 'train':train_path, 
+            'test':test_path, 'image':img_path}
+    return paths
 
 
 def eeg_to_image(data, fn, image_path):
-    S = np.fft.fft(data)
+    S = np.abs(np.fft.fft(data, axis=1))
     D = divergence(S)
-    S, D = abs(S), abs(D)
     I = convolve_8NNavg(D)
+    S, D, I = l2_row(S), l2_row(D), l2_row(I) 
     S, D, I = scale(S), scale(D), scale(I)
     img = np.stack([S, D, I], axis=2)
     save_loc = f'{image_path/fn}.png'
@@ -73,8 +87,7 @@ def build_filename(key, entry, h, w ,op, st, et, p, tp):
 
 
 def save_image(save_loc, img):
-    img = PIL.Image.fromarray(img, 'RGB')
-    img = img.resize([224,224], PIL.Image.ANTIALIAS)
+    img = PIL.Image.fromarray(img.astype(np.uint8), 'RGB').resize((224,224))
     img.save(save_loc)
 
 
@@ -86,7 +99,10 @@ def get_data_dictionary(parent_path, dict_string):
 
 def down_sample_eeg(eeg, entry, h):
     num_elems = int(float(entry['durations'][-1])) * h
-    return signal.resample(eeg, num=num_elems, axis=1)
+    data = np.empty((eeg.shape[0], num_elems), np.float64)
+    for idx, channel in enumerate(eeg):
+        data[idx] = scipy.signal.resample(channel, num=num_elems)
+    return data
 
 
 def process_eeg(eeg, key, entry, h, w, o, label_dict, image_path):
@@ -104,6 +120,7 @@ def process_eeg(eeg, key, entry, h, w, o, label_dict, image_path):
         eeg_to_image(new_eeg, fn, image_path)
         write_labels(start, end, entry, fn, label_dict)
         piece += 1
+
 
 def get_labels(start, end, label_durations):
     labels = set()
@@ -134,21 +151,22 @@ def write_labels(start, end, entry, fn, label_dict):
 
 
 def get_eeg(entry): 
-    f = pyedflib.EdfReader(entry['loc'])
-    n = f.signals_in_file
-    signal_labels = f.getSignalLabels()
-    sigbufs = np.zeros((n, f.getNSamples()[0]))
-    max_len = max(f.getNSamples())
-    for i in np.arange(n):
-        if len(f.readSignal(i)) == max_len:
-            sigbufs[i, :] = f.readSignal(i)
-    return sigbufs
+    with pyedflib.EdfReader(entry['loc']) as f:
+        n = f.signals_in_file
+        signal_labels = f.getSignalLabels()
+        sigbufs = np.zeros((len(CHANNEL_NAMES), f.getNSamples()[0]))
+        channel_list = [i for i,ch in enumerate(signal_labels) if ch in CHANNEL_NAMES]
+        max_len = max(f.getNSamples())
+        for idx, channel_index in enumerate(channel_list):
+            if len(f.readSignal(channel_index)) == max_len:
+                sigbufs[idx, :] = f.readSignal(channel_index)
+        return sigbufs
 
 
 if __name__ == "__main__":
     args = parser.parse_args()
-    parent_path, test_path, img_path = get_paths()
-    data_dict = get_data_dictionary(parent_path, args.dict_string)
+    paths = get_paths()
+    data_dict = get_data_dictionary(paths['parent'], args.dict_string)
 
     num_eegs = (len([item for sublist in data_dict.values() for item in sublist]))
     print(f'Number of EEGs: {num_eegs}')
@@ -166,12 +184,8 @@ if __name__ == "__main__":
             for h in H_VALUES:
                 down_sampled_eeg = down_sample_eeg(eeg, observation, h)
                 for w, o in list(itertools.product(W_VALUES, O_VALUES)):
-                    #process_eeg(down_sampled_eeg, key, observation, h, w, o, label_dict, img_path) 
+                    #process_eeg(down_sampled_eeg, key, observation, h, w, o,label_dict, paths['image']) 
                     p = multiprocessing.Process(target = process_eeg, args=(down_sampled_eeg, key, observation, h, w, o,
-                            label_dict, img_path)) 
+                            label_dict, paths['image'])) 
                     p.start()
-    ## turn into images (how to pass them to this)
-    # for f in test_path.iterdir():
-    #     p = multiprocessing.Process(target=eeg_to_image, args=(f, test_path, img_path))
-    #     p.start() 
 
