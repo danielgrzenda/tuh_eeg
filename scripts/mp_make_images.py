@@ -191,6 +191,7 @@ if __name__ == "__main__":
     O_VALUES = (25,50,75)
     
     label_dict = collections.defaultdict()
+    jobs = []
     for key, entries in data_dict.items():
         for observation in entries:
             eeg = get_eeg(observation)
@@ -200,9 +201,13 @@ if __name__ == "__main__":
                     #process_eeg(down_sampled_eeg, key, observation, h, w, o,label_dict, paths['image']) 
                     p = multiprocessing.Process(target = process_eeg, args=(down_sampled_eeg, key, observation, h, w, o,
                             label_dict, paths['image'])) 
+                    jobs.append(p)
                     p.start()
-    with csv.writer(open(label_file_string,'w')) as f:
+    for job in jobs:
+        job.join()
+    with open(label_file_string,'w') as f:
+        writer = csv.writer(f)
         for key, value in label_dict.items():
-            f.writerow([key, value])
+            writer.writerow([key,  value])
     end = time.time()
     print(f"Time: {end-start}")
