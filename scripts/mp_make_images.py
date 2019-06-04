@@ -3,6 +3,7 @@
 
 import argparse
 import collections
+import csv
 import functools
 import itertools
 import json
@@ -15,14 +16,20 @@ import pyedflib
 import scipy
 from scipy import stats
 from scipy import signal
-
+import time
 
 # argpare arguments
 parser = argparse.ArgumentParser()
 parser.add_argument('--dict_string', default='data_dict.json', type=str,
         help='The string for the dictionary to use')
 
-CHANNEL_NAMES = ['EEG FP1-REF','EEG FP2-REF','EEG F8-REF','EEG F4-REF','EEG FZ-REF','EEG F3-REF','EEG F7-REF','EEG T3-REF','EEG C3-REF','EEG CZ-REF','EEG C4-REF','EEG T4-REF','EEG T6-REF','EEG P4-REF','EEG PZ-REF','EEG P3-REF','EEG T5-REF','EEG O1-REF','EEG O2-REF']
+CHANNEL_NAMES = ['EEG FP1-REF','EEG FP2-REF','EEG F8-REF',
+                 'EEG F4-REF','EEG FZ-REF','EEG F3-REF',
+                 'EEG F7-REF','EEG A1-REF','EEG T3-REF',
+                 'EEG C3-REF','EEG CZ-REF','EEG C4-REF',
+                 'EEG T4-REF','EEG A2-REF','EEG T6-REF',
+                 'EEG P4-REF','EEG PZ-REF','EEG P3-REF',
+                 'EEG T5-REF','EEG O1-REF','EEG O2-REF']
 
 def divergence(X):
     """ compute the divergence of n-D scalar field `X` """
@@ -122,7 +129,7 @@ def process_eeg(eeg, key, entry, h, w, o, label_dict, image_path):
         piece += 1
 
 
-def get_labels(start, end, label_durations):
+def get_labels(start, end, label_durations, entry):
     labels = set()
     for (label_start, label_end), label in label_durations:
         if start >= label_start and start < label_end:
@@ -130,7 +137,11 @@ def get_labels(start, end, label_durations):
         if end >= label_start and end < label_end:
             labels.add(label)
     if len(labels) > 1:
-        labels.remove('bckg')
+        try:
+            labels.remove('bckg')
+        except:
+            print(start, end, entry)
+            pass
     return labels
 
 
@@ -146,7 +157,7 @@ def get_durations(entry):
 
 def write_labels(start, end, entry, fn, label_dict):
     label_durations = get_durations(entry)
-    labels = get_labels(start, end, label_durations)
+    labels = get_labels(start, end, label_durations, entry)
     label_dict[f'{fn}.png'] = labels
 
 
@@ -164,13 +175,15 @@ def get_eeg(entry):
 
 
 if __name__ == "__main__":
+    start = time.time()
     args = parser.parse_args()
     paths = get_paths()
     data_dict = get_data_dictionary(paths['parent'], args.dict_string)
 
     num_eegs = (len([item for sublist in data_dict.values() for item in sublist]))
     print(f'Number of EEGs: {num_eegs}')
-    
+    label_file_string = f"{paths['parent']}/{args.dict_string.strip('.json')}_labels.csv" 
+    print(f"Label Location: {label_file_string}")
     ## process eegs (multiprocessing)
     
     H_VALUES = (12,24,48,64,96)
@@ -188,4 +201,8 @@ if __name__ == "__main__":
                     p = multiprocessing.Process(target = process_eeg, args=(down_sampled_eeg, key, observation, h, w, o,
                             label_dict, paths['image'])) 
                     p.start()
-
+    with csv.writer(open(label_file_string,'w')) as f:
+        for key, value in label_dict.items():
+            f.writerow([key, value])
+    end = time.time()
+    print(f"Time: {end-start}")
