@@ -160,7 +160,6 @@ def write_labels(start, end, entry, fn, label_dict):
     labels = get_labels(start, end, label_durations, entry)
     label_dict[f'{fn}.png'] = labels
 
-
 def get_eeg(entry): 
     with pyedflib.EdfReader(entry['loc']) as f:
         n = f.signals_in_file
@@ -190,24 +189,25 @@ if __name__ == "__main__":
     W_VALUES = (1,2,4,6,8)
     O_VALUES = (25,50,75)
     
-    label_dict = collections.defaultdict()
-    jobs = []
-    for key, entries in data_dict.items():
-        for observation in entries:
-            eeg = get_eeg(observation)
-            for h in H_VALUES:
-                down_sampled_eeg = down_sample_eeg(eeg, observation, h)
-                for w, o in list(itertools.product(W_VALUES, O_VALUES)):
-                    #process_eeg(down_sampled_eeg, key, observation, h, w, o,label_dict, paths['image']) 
-                    p = multiprocessing.Process(target = process_eeg, args=(down_sampled_eeg, key, observation, h, w, o,
+    with multiprocessing.Manager() as manager:
+        label_dict = manager.dict() 
+        jobs = []
+        for key, entries in data_dict.items():
+            for observation in entries:
+                eeg = get_eeg(observation)
+                for h in H_VALUES:
+                    down_sampled_eeg = down_sample_eeg(eeg, observation, h)
+                    for w, o in list(itertools.product(W_VALUES, O_VALUES)):
+                        #process_eeg(down_sampled_eeg, key, observation, h, w, o,label_dict, paths['image']) 
+                        p = multiprocessing.Process(target = process_eeg, args=(down_sampled_eeg, key, observation, h, w, o,
                             label_dict, paths['image'])) 
-                    jobs.append(p)
-                    p.start()
-    for job in jobs:
-        job.join()
-    with open(label_file_string,'w') as f:
-        writer = csv.writer(f)
-        for key, value in label_dict.items():
-            writer.writerow([key,  value])
-    end = time.time()
-    print(f"Time: {end-start}")
+                        jobs.append(p)
+                        p.start()
+        for job in jobs:
+            job.join()
+        with open(label_file_string,'w') as f:
+            writer = csv.writer(f)
+            for key, value in label_dict.items():
+                writer.writerow([key,  value])
+        end = time.time()
+        print(f"Time: {end-start}")
